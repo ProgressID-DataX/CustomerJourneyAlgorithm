@@ -1,6 +1,39 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, Response, abort
+from networkx.readwrite import json_graph
+import algorithm as algo
+import data
+import os
+
+config = {
+    'journey_csv_file': 'data\\journey.csv'
+}
 
 app = Flask(__name__)
+
+internal_state = {}
+
+def init():
+    print 'Loading journey data...'
+    journey_data, states_map = data.load_journey_data(config['journey_csv_file'])
+    internal_state['journey_data'] = journey_data
+    internal_state['states_map'] = states_map
+    print 'Building journey graph...'
+    internal_state['journey_graph'] = algo.build_graph(journey_data, states_map)
+    print 'Initialization ready!'
+
+@app.before_request
+def check_if_init():
+    if 'journey_graph' not in internal_state:
+        abort(403)
+
+@app.after_request
+def apply_caching(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+@app.errorhandler(403)
+def page_not_found(e):
+    return 'There was a problem initializing the service.', 403
 
 @app.route('/')
 def index():
@@ -12,25 +45,15 @@ def get_leads():
 
 @app.route('/journey', methods=['GET'])
 def get_journey_graph():
-    test_json = [
-        {
-            'id': 1,
-            'title': u'Buy groceries',
-            'description': u'Milk, Cheese, Pizza, Fruit, Tylenol',
-            'done': False
-        },
-        {
-            'id': 2,
-            'title': u'Learn Python',
-            'description': u'Need to find a good Python tutorial on the web',
-            'done': False
-        }
-    ]
-    return jsonify({'journey': test_json})
+    journey_json = json_graph.node_link_data(internal_state['journey_graph'])
+    return jsonify({'journey': journey_json})
 
-@app.route('/journey/<string:lead_id>', methods=['GET'])
-def get_journey_lead(lead_id):
-    return lead_id
+@app.route('/journey/<string:email>', methods=['GET'])
+def get_journey_lead(email):
+    return open('data\journeyByEmail.json').read()
 
 if __name__ == '__main__':
-    app.run(debug=True, host='192.168.144.23', port=8080)
+    print 'Starting service...'
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        init()
+    app.run(debug=True, host='192.168.144.23', port=5000)
