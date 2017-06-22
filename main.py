@@ -5,7 +5,10 @@ import data
 import os
 
 config = {
-    'journey_csv_file': 'data\\journey.csv'
+    # 'journey_csv_file': 'data\\journey.csv',
+    'journey_csv_file': 'data\\journey_big_test.csv',
+    'metric': 'euclidean',
+    'n_neighbors': 2
 }
 
 app = Flask(__name__)
@@ -17,8 +20,18 @@ def init():
     journey_data, states_map = data.load_journey_data(config['journey_csv_file'])
     internal_state['journey_data'] = journey_data
     internal_state['states_map'] = states_map
+
     print 'Building journey graph...'
     internal_state['journey_graph'] = algo.build_graph(journey_data, states_map)
+
+    print 'Computing feature matrix...'
+    internal_state['sparse_feature_matrix'] = algo.compute_feature_matrix(internal_state['journey_data'])
+
+    print 'Computing nearest neighbor model...'
+    internal_state['nn'] = algo.compute_nearest_neighbor_model(internal_state['sparse_feature_matrix'],
+                                                               metric=config['metric'],
+                                                               n_neighbors=config['n_neighbors'])
+
     print 'Initialization ready!'
 
 @app.before_request
@@ -50,7 +63,12 @@ def get_journey_graph():
 
 @app.route('/journey/<string:email>', methods=['GET'])
 def get_journey_lead(email):
-    return open('data\journeyByEmail.json').read()
+    neighbors_dict = algo.get_nearest_neighbors(internal_state['nn'],
+                                                [email],
+                                                internal_state['journey_data'],
+                                                internal_state['sparse_feature_matrix'],
+                                                n_neighbors=config['n_neighbors'])
+    return '<br>\n'.join(neighbors_dict[email])
 
 if __name__ == '__main__':
     print 'Starting service...'
