@@ -26,7 +26,8 @@ def load_journey_data(csv_file, verbose=1):
                 sys.stdout.flush()
         days = list((group['Date'].diff().fillna(0) / np.timedelta64(1, 'D')).astype(int)) + [0]
         states = ['A'] + [states_map_inv[state] for state in group['State']]
-        journey_data[email] = {'id': email_id, 'journey': zip(states, days)}
+        dates = [None] + list(group['Date'])
+        journey_data[email] = {'id': email_id, 'journey': zip(states, days, dates)}
     if verbose:
         print ''
 

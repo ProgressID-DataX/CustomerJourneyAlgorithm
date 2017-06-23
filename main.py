@@ -1,20 +1,24 @@
 from flask import Flask, jsonify, request, Response, abort
 from networkx.readwrite import json_graph
 import algorithm as algo
+import helpers
 import data
 import os
 from IPython.display import display, HTML
+import cPickle as pickle
 
 config = {
-    'journey_csv_file': 'data\\journey.csv',
-    # 'journey_csv_file': 'data\\journey_big_test.csv',
-    # 'journey_csv_file': 'data\\some_data_2.csv',
+    # 'journey_csv_file': 'data\\journey.csv',
+    # 'journey_csv_file': 'data\\kendo_core_journey.csv',
+    'journey_csv_file': 'data\\final_data.csv',
     'metric': 'euclidean',
     'sparse': True,
     'approximate': False,
-    'n_neighbors': 100,
-    'n_candidates': 200,
-    'lookback_states_count': 1
+    'n_neighbors': 200,
+    'n_candidates': 400,
+    'lookback_states_count': 1,
+    'internal_state_file': 'data/internal_state.pkl',
+    'max_similar_customers_count': 10
 }
 
 app = Flask(__name__)
@@ -39,6 +43,9 @@ def init():
                                                                sparse=config['sparse'],
                                                                n_neighbors=config['n_neighbors'],
                                                                approximate=config['approximate'])
+
+    with open(config['internal_state_file'], 'wb') as pkl_file:
+        pickle.dump(internal_state, pkl_file)
 
     print 'Initialization ready!'
 
@@ -67,11 +74,14 @@ def get_leads():
 @app.route('/journey', methods=['GET'])
 def get_journey_graph():
     journey_json = json_graph.node_link_data(internal_state['journey_graph'])
-    return jsonify({'journey': journey_json})
+    return jsonify({'graph': journey_json})
 
 @app.route('/journey/<string:email>', methods=['GET'])
 def get_journey_lead(email):
-    lookback_states_count = int(request.args.get('lookback_states_count'))
+    if email not in internal_state['journey_data']:
+        return jsonify({'error':'Customer not found.'})
+
+    lookback_states_count = request.args.get('lookback_states_count')
 
     neighbors_dict = algo.get_nearest_neighbors(internal_state['nn'],
                                                 [email],
@@ -82,15 +92,33 @@ def get_journey_lead(email):
     predictions = algo.predict_future_states(email,
                                              neighbors_dict[email],
                                              internal_state['journey_data'],
-                                             internal_state['states_map'],
-                                             lookback_states_count=lookback_states_count if lookback_states_count else config['lookback_states_count'])
+                                             lookback_states_count=int(lookback_states_count) if lookback_states_count else config['lookback_states_count'])
 
-    neighbors_str = ['{}:{}'.format(neighbor_email, internal_state['journey_data'][neighbor_email]['journey']) for neighbor_email in neighbors_dict[email]]
+    # TODO: add customer details
+    customer_details = None
 
-    return str(internal_state['states_map']) + '<br>' + str(predictions.to_html()) + '<br>\n'.join([str(neighbors_dict), str(internal_state['journey_data'])])
+    customer_response = helpers.prepare_customer_response(email,
+                                                          neighbors_dict[email],
+                                                          internal_state['journey_data'],
+                                                          predictions,
+                                                          customer_details,
+                                                          max_similar_customers_count=config['max_similar_customers_count'])
+
+    return jsonify({'customer': customer_response})
+
+@app.route('/refresh', methods=['GET'])
+def refresh():
+    init()
+    return 'Done!'
 
 if __name__ == '__main__':
     print 'Starting service...'
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-        init()
-    app.run(debug=True, host='192.168.144.23', port=5000)
+        try:
+            with open(config['internal_state_file'], 'rb') as pkl_file:
+                int_st = pickle.load(pkl_file)
+            for k, v in int_st.iteritems():
+                internal_state[k] = v
+        except:
+            init()
+    app.run(debug=True, host='192.168.144.23', port=8080)

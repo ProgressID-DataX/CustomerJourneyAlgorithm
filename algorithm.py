@@ -107,30 +107,31 @@ def compute_nearest_neighbor_model(sparse_feature_matrix,
 def get_nearest_neighbors(nn, query_emails, journey_data, sparse_feature_matrix, n_neighbors=2):
     email_ids = [journey_data[email]['id'] for email in query_emails]
     id_email_map = {v['id']: k for k, v in journey_data.iteritems()}
-    neigbors = nn.kneighbors(sparse_feature_matrix[email_ids, :],
+    distances, neighbors = nn.kneighbors(sparse_feature_matrix[email_ids, :],
                              n_neighbors=n_neighbors,
-                             return_distance=False)
+                             return_distance=True)
 
     neighbors_dict = {}
 
     for i, email_id in enumerate(email_ids):
         email = id_email_map[email_id]
-        email_neighbors = [id_email_map[neighbor_email_id] for neighbor_email_id in neigbors[i, :]]
+        # sort neighbors ascending by distance
+        email_neighbors = [n for (d, n) in sorted(zip(distances[i], neighbors[i]))]
+        email_neighbors = [id_email_map[neighbor_email_id] for neighbor_email_id in email_neighbors]
         neighbors_dict[email] = email_neighbors
 
     return neighbors_dict
 
-def predict_future_states(email, neighbors, journey_data, states_map, lookback_states_count=1):
-    lookback_states = ''.join([state for state, day in journey_data[email]['journey']])[-lookback_states_count:]
+def predict_future_states(email, neighbors, journey_data, lookback_states_count=1):
+    lookback_states = ''.join([state for state, _, _ in journey_data[email]['journey']])[-lookback_states_count:]
 
     predict_states = []
     predict_days = []
 
     for neigh in neighbors:
         neigh_journey = journey_data[neigh]['journey']
-        neigh_states = ''.join([state for state, day in neigh_journey])
+        neigh_states = ''.join([state for state, _, _ in neigh_journey])
         neigh_lookback_states_last_pos = neigh_states.rfind(lookback_states)
-        print neigh, neigh_lookback_states_last_pos
         if neigh_lookback_states_last_pos != -1 and neigh_lookback_states_last_pos < len(neigh_states) - lookback_states_count:
             neigh_next_state = neigh_states[neigh_lookback_states_last_pos + lookback_states_count]
             neigh_next_state_days = neigh_journey[neigh_lookback_states_last_pos + lookback_states_count - 1][1]
@@ -138,17 +139,13 @@ def predict_future_states(email, neighbors, journey_data, states_map, lookback_s
             predict_days.append(neigh_next_state_days)
 
     predict_raw_df = pd.DataFrame({'state': predict_states, 'days': predict_days})
-    print predict_raw_df
     total_relevant_neighbors = len(predict_raw_df)
     predictions = predict_raw_df.groupby('state').agg([len, np.mean])
     predictions['probability'] = predictions['days', 'len'] / total_relevant_neighbors
     predictions['expected_days'] = predictions['days', 'mean']
     del predictions['days']
 
-    predictions.rename(index=states_map, inplace=True)
+    # predictions.rename(index=states_map, inplace=True)
     predictions.columns = predictions.columns.droplevel(1)
 
     return predictions
-
-def journey(email):
-    pass
