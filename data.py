@@ -18,7 +18,7 @@ def load_journey_data(csv_file, verbose=1):
     if verbose:
         total_emails = len(df['Email'].unique())
 
-    for email_id, (email, group) in enumerate(df.sort_values('Date').groupby('Email')):
+    for email_id, (email, group) in enumerate(df.sort_values('Date', ascending=True).groupby('Email')):
         if verbose:
             # print progress
             if not email_id % 1000:

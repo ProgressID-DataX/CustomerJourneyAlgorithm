@@ -3,12 +3,18 @@ from networkx.readwrite import json_graph
 import algorithm as algo
 import data
 import os
+from IPython.display import display, HTML
 
 config = {
-    # 'journey_csv_file': 'data\\journey.csv',
-    'journey_csv_file': 'data\\journey_big_test.csv',
+    'journey_csv_file': 'data\\journey.csv',
+    # 'journey_csv_file': 'data\\journey_big_test.csv',
+    # 'journey_csv_file': 'data\\some_data_2.csv',
     'metric': 'euclidean',
-    'n_neighbors': 2
+    'sparse': True,
+    'approximate': False,
+    'n_neighbors': 100,
+    'n_candidates': 200,
+    'lookback_states_count': 1
 }
 
 app = Flask(__name__)
@@ -30,7 +36,9 @@ def init():
     print 'Computing nearest neighbor model...'
     internal_state['nn'] = algo.compute_nearest_neighbor_model(internal_state['sparse_feature_matrix'],
                                                                metric=config['metric'],
-                                                               n_neighbors=config['n_neighbors'])
+                                                               sparse=config['sparse'],
+                                                               n_neighbors=config['n_neighbors'],
+                                                               approximate=config['approximate'])
 
     print 'Initialization ready!'
 
@@ -63,12 +71,23 @@ def get_journey_graph():
 
 @app.route('/journey/<string:email>', methods=['GET'])
 def get_journey_lead(email):
+    lookback_states_count = int(request.args.get('lookback_states_count'))
+
     neighbors_dict = algo.get_nearest_neighbors(internal_state['nn'],
                                                 [email],
                                                 internal_state['journey_data'],
                                                 internal_state['sparse_feature_matrix'],
                                                 n_neighbors=config['n_neighbors'])
-    return '<br>\n'.join(neighbors_dict[email])
+
+    predictions = algo.predict_future_states(email,
+                                             neighbors_dict[email],
+                                             internal_state['journey_data'],
+                                             internal_state['states_map'],
+                                             lookback_states_count=lookback_states_count if lookback_states_count else config['lookback_states_count'])
+
+    neighbors_str = ['{}:{}'.format(neighbor_email, internal_state['journey_data'][neighbor_email]['journey']) for neighbor_email in neighbors_dict[email]]
+
+    return str(internal_state['states_map']) + '<br>' + str(predictions.to_html()) + '<br>\n'.join([str(neighbors_dict), str(internal_state['journey_data'])])
 
 if __name__ == '__main__':
     print 'Starting service...'
