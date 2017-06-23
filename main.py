@@ -10,7 +10,9 @@ import cPickle as pickle
 config = {
     # 'journey_csv_file': 'data\\journey.csv',
     # 'journey_csv_file': 'data\\kendo_core_journey.csv',
-    'journey_csv_file': 'data\\final_data.csv',
+    # 'journey_csv_file': 'data\\final_data.csv',
+    'journey_csv_file': 'data\\final_data_simplified.csv',
+    'customer_details_csv_file': 'data\\customer_details.csv',
     'metric': 'euclidean',
     'sparse': True,
     'approximate': False,
@@ -30,6 +32,9 @@ def init():
     journey_data, states_map = data.load_journey_data(config['journey_csv_file'])
     internal_state['journey_data'] = journey_data
     internal_state['states_map'] = states_map
+
+    print 'Loading customer details...'
+    internal_state['customer_details'] = data.load_customer_details_data(config['customer_details_csv_file'])
 
     print 'Building journey graph...'
     internal_state['journey_graph'] = algo.build_graph(journey_data, states_map)
@@ -94,14 +99,11 @@ def get_journey_lead(email):
                                              internal_state['journey_data'],
                                              lookback_states_count=int(lookback_states_count) if lookback_states_count else config['lookback_states_count'])
 
-    # TODO: add customer details
-    customer_details = None
-
     customer_response = helpers.prepare_customer_response(email,
                                                           neighbors_dict[email],
                                                           internal_state['journey_data'],
                                                           predictions,
-                                                          customer_details,
+                                                          internal_state['customer_details'],
                                                           max_similar_customers_count=config['max_similar_customers_count'])
 
     return jsonify({'customer': customer_response})

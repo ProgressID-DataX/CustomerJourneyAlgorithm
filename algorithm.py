@@ -19,7 +19,7 @@ def build_graph(journey_data, states_map, verbose=1):
         if verbose:
             # print progress
             if not customer_num % 1000:
-                sys.stdout.write('\rProcessing customer ' + str(customer_num) + ' of ' + str(total_customers))
+                sys.stdout.write(u'\rProcessing customer ' + unicode(customer_num) + ' of ' + unicode(total_customers))
                 sys.stdout.flush()
 
         for i in range(len(data['journey']) - 1):
@@ -68,7 +68,7 @@ def compute_feature_matrix(journey_data, verbose=1):
         if verbose:
             # print progress
             if not customer_num % 1000:
-                sys.stdout.write('\rProcessing customer ' + str(customer_num) + ' of ' + str(total_customers))
+                sys.stdout.write(u'\rProcessing customer ' + unicode(customer_num) + ' of ' + unicode(total_customers))
                 sys.stdout.flush()
         path = ''.join([state[0] for state in data['journey']])
         features = extract_subpath_kernel_features(path)
