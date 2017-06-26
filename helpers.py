@@ -9,10 +9,16 @@ def prepare_customer_response(email, neighbors, journey_data, predictions, custo
             'email': cust_email,
             'emailId': journey_data[cust_email]['id']
         }
-        row = customer_details.loc[cust_email]
-        details['firstName'] = row['First Name']
-        details['lastName'] = row['Last Name']
-        details['country'] = row['Country']
+        if customer_details is None:
+            details['firstName'] = 'Hidden'
+            details['lastName'] = 'Hidden'
+            details['country'] = 'Hidden'
+        else:
+            row = customer_details.loc[cust_email]
+            details['firstName'] = row['First Name']
+            details['lastName'] = row['Last Name']
+            details['country'] = row['Country']
+
         return details
 
     customer_response = {

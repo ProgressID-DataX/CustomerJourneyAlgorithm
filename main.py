@@ -11,7 +11,8 @@ config = {
     # 'journey_csv_file': 'data\\journey.csv',
     # 'journey_csv_file': 'data\\kendo_core_journey.csv',
     # 'journey_csv_file': 'data\\final_data.csv',
-    'journey_csv_file': 'data\\final_data_simplified.csv',
+    # 'journey_csv_file': 'data\\final_data_simplified.csv',
+    'journey_csv_file': 'data\\final_data_simplified_anonymized.csv',
     'customer_details_csv_file': 'data\\customer_details.csv',
     'metric': 'euclidean',
     'sparse': True,
@@ -20,7 +21,8 @@ config = {
     'n_candidates': 400,
     'lookback_states_count': 1,
     'internal_state_file': 'data/internal_state.pkl',
-    'max_similar_customers_count': 10
+    'max_similar_customers_count': 10,
+    'anonymous_data': True
 }
 
 app = Flask(__name__)
@@ -34,7 +36,10 @@ def init():
     internal_state['states_map'] = states_map
 
     print 'Loading customer details...'
-    internal_state['customer_details'] = data.load_customer_details_data(config['customer_details_csv_file'])
+    if config['anonymous_data']:
+        internal_state['customer_details'] = None
+    else:
+        internal_state['customer_details'] = data.load_customer_details_data(config['customer_details_csv_file'])
 
     print 'Building journey graph...'
     internal_state['journey_graph'] = algo.build_graph(journey_data, states_map)
@@ -49,6 +54,7 @@ def init():
                                                                n_neighbors=config['n_neighbors'],
                                                                approximate=config['approximate'])
 
+    print 'Storing internal state on disc...'
     with open(config['internal_state_file'], 'wb') as pkl_file:
         pickle.dump(internal_state, pkl_file)
 
@@ -118,6 +124,7 @@ if __name__ == '__main__':
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         try:
             with open(config['internal_state_file'], 'rb') as pkl_file:
+                print 'Loading internal state from disc...'
                 int_st = pickle.load(pkl_file)
             for k, v in int_st.iteritems():
                 internal_state[k] = v
